@@ -22,8 +22,16 @@ const Dashboard: React.FC<DashboardProps> = ({ gameData, userTeam, setScreen, ha
 
     if (matchIndex >= currentSchedule.length) {
         return (
-            <div className="p-4 text-center h-full flex items-center justify-center">
-                <p>Tournament finished, calculating results...</p>
+            <div className="p-8 h-[calc(100vh-120px)] flex flex-col items-center justify-center text-center bg-white dark:bg-gray-900 rounded-2xl shadow-md border-t-4 border-teal-500 m-2">
+                <div className="text-4xl mb-4">🏆</div>
+                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mb-2">Tournament Complete!</h2>
+                <p className="text-slate-500 text-xs mb-6 max-w-sm">Every single fixture of the {gameData.currentFormat} format has concluded. Choose below to view tournament achievements, champion crowning, and future draft planning.</p>
+                <button 
+                    onClick={() => setScreen('END_OF_FORMAT')}
+                    className="w-full max-w-xs bg-teal-500 hover:bg-teal-600 text-white font-extrabold uppercase py-4 px-6 rounded-2xl shadow-lg hover:scale-[1.02] active:scale-95 transition-all text-xs tracking-wider"
+                >
+                    View Season Results & Awards
+                </button>
             </div>
         );
     }

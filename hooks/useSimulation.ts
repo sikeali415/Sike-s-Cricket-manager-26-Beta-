@@ -357,7 +357,47 @@ export const useSimulation = (gameData: GameData, setGameData: React.Dispatch<Re
         const allInnings = [result.firstInning, result.secondInning, result.thirdInning, result.fourthInning].filter(Boolean) as Inning[];
         const isT20OrODI = format.includes('T20') || format.includes('One-Day') || format.includes('List-A');
 
+        // Helpers to resolve team names and opposition
+        const teamA = newGameData.teams.find(t => t.id === result.firstInning.teamId);
+        const teamB = newGameData.teams.find(t => t.id === result.secondInning.teamId);
+
+        if (teamA && teamB) {
+            if (!newGameData.records?.teamVsTeam) {
+                newGameData.records = {
+                    ...newGameData.records,
+                    teamVsTeam: []
+                };
+            }
+            let tvt = newGameData.records.teamVsTeam.find(
+                r => (r.teamAId === teamA.id && r.teamBId === teamB.id) || 
+                     (r.teamAId === teamB.id && r.teamBId === teamA.id)
+            );
+            if (!tvt) {
+                tvt = {
+                    teamAId: teamA.id,
+                    teamBId: teamB.id,
+                    teamAName: teamA.name,
+                    teamBName: teamB.name,
+                    matches: 0,
+                    teamAWins: 0
+                };
+                newGameData.records.teamVsTeam.push(tvt);
+            }
+            tvt.matches += 1;
+            if (result.winnerId === teamA.id) {
+                if (tvt.teamAId === teamA.id) tvt.teamAWins += 1;
+            } else if (result.winnerId === teamB.id) {
+                if (tvt.teamAId === teamB.id) tvt.teamAWins += 1;
+            }
+        }
+
+        const getOpponentTeam = (inningTeamId: string) => {
+            const oppId = (inningTeamId === result.firstInning.teamId) ? result.secondInning.teamId : result.firstInning.teamId;
+            return newGameData.teams.find(t => t.id === oppId);
+        };
+
         for (const inning of allInnings) {
+            // Batting performance updates
             for (const batPerf of inning.batting) { 
                 const player = newGameData.allPlayers.find(p => p.id === batPerf.playerId); if (!player) continue; 
                 if (!player.stats[format]) player.stats[format] = generateSingleFormatInitialStats();
@@ -369,13 +409,127 @@ export const useSimulation = (gameData: GameData, setGameData: React.Dispatch<Re
                 const statsArr = [player.stats[format], player.seasonStats[season][format]];
                 
                 for (const stats of statsArr) {
-                    stats.matches += (inning === result.firstInning || (inning === result.secondInning && !result.thirdInning) ? 1 : 0); stats.inningsBatting += 1;
-                    stats.runs += batPerf.runs; stats.ballsFaced += batPerf.balls; if (batPerf.isOut) stats.dismissals++; 
-                    if (batPerf.runs > stats.highestScore) stats.highestScore = batPerf.runs; if (batPerf.runs >= 100) stats.hundreds++; else if (batPerf.runs >= 50) stats.fifties++; 
-                    stats.fours += batPerf.fours; stats.sixes += batPerf.sixes; stats.average = stats.dismissals > 0 ? stats.runs / stats.dismissals : stats.runs; 
-                    stats.strikeRate = stats.ballsFaced > 0 ? (stats.runs / stats.ballsFaced) * 100 : 0; 
+                    stats.matches += (inning === result.firstInning || (inning === result.secondInning && !result.thirdInning) ? 1 : 0); 
+                    stats.inningsBatting += 1;
+                    stats.runs += batPerf.runs; 
+                    stats.ballsFaced += batPerf.balls; 
+                    if (batPerf.isOut) stats.dismissals++; 
+                    if (batPerf.runs > stats.highestScore) stats.highestScore = batPerf.runs; 
+                    
+                    if (batPerf.runs >= 100) {
+                        stats.hundreds++;
+                    } else if (batPerf.runs >= 50) {
+                        stats.fifties++;
+                    } else if (batPerf.runs >= 30) {
+                        stats.thirties++;
+                    }
+
+                    if (batPerf.runs >= 50 && batPerf.balls > 0) {
+                        if (stats.fastestFifty === 0 || batPerf.balls < stats.fastestFifty) {
+                            stats.fastestFifty = batPerf.balls;
+                        }
+                    }
+                    if (batPerf.runs >= 100 && batPerf.balls > 0) {
+                        if (stats.fastestHundred === 0 || batPerf.balls < stats.fastestHundred) {
+                            stats.fastestHundred = batPerf.balls;
+                        }
+                    }
+
+                    stats.fours += batPerf.fours; 
+                    stats.sixes += batPerf.sixes; 
+                    stats.average = stats.dismissals > 0 ? stats.runs / stats.dismissals : stats.runs; 
+                    stats.strikeRate = stats.ballsFaced > 0 ? (stats.runs / stats.ballsFaced) * 100 : 0;
+
+                    // Phase Stats
+                    if (!stats.phaseStats) {
+                        stats.phaseStats = {
+                            batting: {
+                                pp: { runs: 0, balls: 0, dismissals: 0 },
+                                mo: { runs: 0, balls: 0, dismissals: 0 },
+                                do: { runs: 0, balls: 0, dismissals: 0 }
+                            },
+                            bowling: {
+                                pp: { wickets: 0, runsConceded: 0, ballsBowled: 0 },
+                                mo: { wickets: 0, runsConceded: 0, ballsBowled: 0 },
+                                do: { wickets: 0, runsConceded: 0, ballsBowled: 0 }
+                            }
+                        };
+                    }
+                    if (!stats.phaseStats.batting) {
+                        stats.phaseStats.batting = {
+                            pp: { runs: 0, balls: 0, dismissals: 0 },
+                            mo: { runs: 0, balls: 0, dismissals: 0 },
+                            do: { runs: 0, balls: 0, dismissals: 0 }
+                        };
+                    }
+
+                    const pb = stats.phaseStats.batting;
+                    pb.pp.runs += batPerf.ppRuns || 0;
+                    pb.pp.balls += batPerf.ppBalls || 0;
+                    pb.pp.dismissals += batPerf.ppDismissals || 0;
+
+                    pb.mo.runs += batPerf.moRuns || 0;
+                    pb.mo.balls += batPerf.moBalls || 0;
+                    pb.mo.dismissals += batPerf.moDismissals || 0;
+
+                    pb.do.runs += batPerf.doRuns || 0;
+                    pb.do.balls += batPerf.doBalls || 0;
+                    pb.do.dismissals += batPerf.doDismissals || 0;
+
+                    // Position Stats
+                    if (batPerf.battingPosition && batPerf.battingPosition >= 1 && batPerf.battingPosition <= 11) {
+                        if (!stats.positionStats) stats.positionStats = {};
+                        const pos = batPerf.battingPosition;
+                        if (!stats.positionStats[pos]) {
+                            stats.positionStats[pos] = {
+                                innings: 0,
+                                runs: 0,
+                                balls: 0,
+                                dismissals: 0,
+                                thirties: 0,
+                                fifties: 0,
+                                hundreds: 0
+                            };
+                        }
+                        const ps = stats.positionStats[pos];
+                        ps.innings += 1;
+                        ps.runs += batPerf.runs;
+                        ps.balls += batPerf.balls;
+                        if (batPerf.isOut) ps.dismissals += 1;
+                        if (batPerf.runs >= 100) ps.hundreds += 1;
+                        else if (batPerf.runs >= 50) ps.fifties += 1;
+                        else if (batPerf.runs >= 30) ps.thirties += 1;
+                    }
+                }
+
+                // Player Vs Team Batting Records
+                const oppTeam = getOpponentTeam(inning.teamId);
+                if (oppTeam) {
+                    if (!newGameData.records?.playerVsTeam) newGameData.records = { ...newGameData.records, playerVsTeam: [] };
+                    let pvt = newGameData.records.playerVsTeam.find(r => r.playerId === batPerf.playerId && r.vsTeamId === oppTeam.id);
+                    if (!pvt) {
+                        pvt = {
+                            playerId: batPerf.playerId,
+                            playerName: batPerf.playerName,
+                            playerRole: player.role,
+                            vsTeamId: oppTeam.id,
+                            vsTeamName: oppTeam.name,
+                            runs: 0,
+                            balls: 0,
+                            dismissals: 0,
+                            wickets: 0,
+                            runsConceded: 0,
+                            ballsBowled: 0
+                        };
+                        newGameData.records.playerVsTeam.push(pvt);
+                    }
+                    pvt.runs += batPerf.runs;
+                    pvt.balls += batPerf.balls;
+                    if (batPerf.isOut) pvt.dismissals += 1;
                 }
             }
+
+            // Bowling performance updates
             for (const bowlPerf of inning.bowling) { 
                 const player = newGameData.allPlayers.find(p => p.id === bowlPerf.playerId); if (!player) continue; 
                 if (!player.stats[format]) player.stats[format] = generateSingleFormatInitialStats();
@@ -388,18 +542,90 @@ export const useSimulation = (gameData: GameData, setGameData: React.Dispatch<Re
                 
                 for (const stats of statsArr) {
                     stats.inningsBowling += (bowlPerf.ballsBowled > 0 ? 1 : 0);
-                    stats.wickets += bowlPerf.wickets; stats.runsConceded += bowlPerf.runsConceded; stats.ballsBowled += bowlPerf.ballsBowled;
+                    stats.wickets += bowlPerf.wickets; 
+                    stats.runsConceded += bowlPerf.runsConceded; 
+                    stats.ballsBowled += bowlPerf.ballsBowled;
                     stats.bowlingAverage = stats.wickets > 0 ? stats.runsConceded / stats.wickets : stats.runsConceded; 
                     stats.economy = stats.ballsBowled > 0 ? (stats.runsConceded / stats.ballsBowled) * 6 : 0; 
                     if (bowlPerf.wickets > stats.bestBowlingWickets || (bowlPerf.wickets === stats.bestBowlingWickets && bowlPerf.runsConceded < stats.bestBowlingRuns)) { 
                         stats.bestBowlingWickets = bowlPerf.wickets; stats.bestBowlingRuns = bowlPerf.runsConceded; stats.bestBowling = `${bowlPerf.wickets}/${bowlPerf.runsConceded}`; 
                     } 
-                    if (bowlPerf.wickets >= 5) stats.fiveWicketHauls++; else if (bowlPerf.wickets >= 3) stats.threeWicketHauls++; 
+                    if (bowlPerf.wickets >= 5) stats.fiveWicketHauls++; else if (bowlPerf.wickets >= 3) stats.threeWicketHauls++;
+
+                    // Phase Stats
+                    if (!stats.phaseStats) {
+                        stats.phaseStats = {
+                            batting: {
+                                pp: { runs: 0, balls: 0, dismissals: 0 },
+                                mo: { runs: 0, balls: 0, dismissals: 0 },
+                                do: { runs: 0, balls: 0, dismissals: 0 }
+                            },
+                            bowling: {
+                                pp: { wickets: 0, runsConceded: 0, ballsBowled: 0 },
+                                mo: { wickets: 0, runsConceded: 0, ballsBowled: 0 },
+                                do: { wickets: 0, runsConceded: 0, ballsBowled: 0 }
+                            }
+                        };
+                    }
+                    if (!stats.phaseStats.bowling) {
+                        stats.phaseStats.bowling = {
+                            pp: { wickets: 0, runsConceded: 0, ballsBowled: 0 },
+                            mo: { wickets: 0, runsConceded: 0, ballsBowled: 0 },
+                            do: { wickets: 0, runsConceded: 0, ballsBowled: 0 }
+                        };
+                    }
+
+                    const pw = stats.phaseStats.bowling;
+                    pw.pp.wickets += bowlPerf.ppWickets || 0;
+                    pw.pp.runsConceded += bowlPerf.ppRunsConceded || 0;
+                    pw.pp.ballsBowled += bowlPerf.ppBallsBowled || 0;
+
+                    pw.mo.wickets += bowlPerf.moWickets || 0;
+                    pw.mo.runsConceded += bowlPerf.moRunsConceded || 0;
+                    pw.mo.ballsBowled += bowlPerf.moBallsBowled || 0;
+
+                    pw.do.wickets += bowlPerf.doWickets || 0;
+                    pw.do.runsConceded += bowlPerf.doRunsConceded || 0;
+                    pw.do.ballsBowled += bowlPerf.doBallsBowled || 0;
                 }
+
+                // Player Vs Team Bowling Records: vsTeamId is inning.teamId
+                if (!newGameData.records?.playerVsTeam) newGameData.records = { ...newGameData.records, playerVsTeam: [] };
+                let pvt = newGameData.records.playerVsTeam.find(r => r.playerId === bowlPerf.playerId && r.vsTeamId === inning.teamId);
+                if (!pvt) {
+                    pvt = {
+                        playerId: bowlPerf.playerId,
+                        playerName: bowlPerf.playerName,
+                        playerRole: player.role,
+                        vsTeamId: inning.teamId,
+                        vsTeamName: inning.teamName,
+                        runs: 0,
+                        balls: 0,
+                        dismissals: 0,
+                        wickets: 0,
+                        runsConceded: 0,
+                        ballsBowled: 0
+                    };
+                    newGameData.records.playerVsTeam.push(pvt);
+                }
+                pvt.wickets += bowlPerf.wickets;
+                pvt.runsConceded += bowlPerf.runsConceded;
+                pvt.ballsBowled += bowlPerf.ballsBowled;
             }
         }
+
+        // POTM Counter Updates (Both format-based career and season stats)
         const motmPlayer = newGameData.allPlayers.find(p => p.id === result.manOfTheMatch.playerId); 
-        if (motmPlayer) { if (!motmPlayer.stats[format]) motmPlayer.stats[format] = generateSingleFormatInitialStats(); motmPlayer.stats[format].manOfTheMatchAwards++; }
+        if (motmPlayer) { 
+            if (!motmPlayer.stats[format]) motmPlayer.stats[format] = generateSingleFormatInitialStats(); 
+            motmPlayer.stats[format].manOfTheMatchAwards++; 
+            const season = newGameData.currentSeason;
+            if (!motmPlayer.seasonStats) motmPlayer.seasonStats = {};
+            if (!motmPlayer.seasonStats[season]) motmPlayer.seasonStats[season] = {} as Record<Format, PlayerStats>;
+            if (!motmPlayer.seasonStats[season][format]) motmPlayer.seasonStats[season][format] = generateSingleFormatInitialStats();
+            motmPlayer.seasonStats[season][format].manOfTheMatchAwards++;
+        }
+
         newGameData.standings[format].forEach(s => {
             if (s.teamId === result.firstInning.teamId || s.teamId === result.secondInning.teamId) {
                 s.played++; if (result.winnerId === s.teamId) s.won++, s.points += format.includes('First-Class') ? 4 : 2;

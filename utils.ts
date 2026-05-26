@@ -235,10 +235,12 @@ export const LoadingSpinner = () => (
     )
 );
 
-export const aggregateStats = (player: Player, formats: Format[]): PlayerStats => {
+export const aggregateStats = (player: Player, formats: Format[], season?: number): PlayerStats => {
     const total = generateSingleFormatInitialStats();
     formats.forEach(f => {
-        const s = player.stats[f];
+        const s = season && player.seasonStats?.[season] 
+            ? player.seasonStats[season][f] 
+            : player.stats[f];
         if (s) {
             total.matches += s.matches;
             total.runs += s.runs;

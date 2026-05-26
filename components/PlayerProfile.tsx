@@ -183,7 +183,7 @@ const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, onBack, initialFo
                 </div>
 
                 {/* Phase Stats (T20 and One-Day) */}
-                {(selectedFormat.includes('T20') || selectedFormat.includes('One-Day') || selectedFormat.includes('Cup')) && stats.phaseStats && (
+                {(selectedFormat.includes('T20') || selectedFormat.includes('One-Day') || selectedFormat.includes('Cup')) && (
                     <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
                         <h3 className="font-bold text-lg mb-3 text-center text-teal-600 dark:text-teal-400">Phase-wise Performance</h3>
                         

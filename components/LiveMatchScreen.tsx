@@ -305,7 +305,7 @@ const PostTossInfoScreen = ({ state, gameData, onProceed }: { state: LiveMatchSt
                                 <div>
                                     <p className="text-[9px] text-slate-500 uppercase font-black mb-2 tracking-widest">In-Form Batters</p>
                                     {inFormA.batters.map(p => {
-                                        const h2h = gameData.records.playerVsTeam?.[p.id]?.[teamB.id] || { runs: 0 };
+                                        const h2h = gameData.records.playerVsTeam?.find(r => r.playerId === p.id && r.vsTeamId === teamB.id) || { runs: 0 };
                                         return (
                                             <div key={p.id} className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700/30">
                                                 <div className="flex flex-col">
@@ -323,7 +323,7 @@ const PostTossInfoScreen = ({ state, gameData, onProceed }: { state: LiveMatchSt
                                 <div>
                                     <p className="text-[9px] text-slate-500 uppercase font-black mb-2 tracking-widest">In-Form Bowlers</p>
                                     {inFormA.bowlers.map(p => {
-                                        const h2h = gameData.records.playerVsTeam?.[p.id]?.[teamB.id] || { wickets: 0 };
+                                        const h2h = gameData.records.playerVsTeam?.find(r => r.playerId === p.id && r.vsTeamId === teamB.id) || { wickets: 0 };
                                         return (
                                             <div key={p.id} className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700/30">
                                                 <div className="flex flex-col">
@@ -346,7 +346,7 @@ const PostTossInfoScreen = ({ state, gameData, onProceed }: { state: LiveMatchSt
                                 <div>
                                     <p className="text-[9px] text-slate-500 uppercase font-black mb-2 tracking-widest">In-Form Batters</p>
                                     {inFormB.batters.map(p => {
-                                        const h2h = gameData.records.playerVsTeam?.[p.id]?.[teamA.id] || { runs: 0 };
+                                        const h2h = gameData.records.playerVsTeam?.find(r => r.playerId === p.id && r.vsTeamId === teamA.id) || { runs: 0 };
                                         return (
                                             <div key={p.id} className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700/30">
                                                 <div className="flex flex-col">
@@ -364,7 +364,7 @@ const PostTossInfoScreen = ({ state, gameData, onProceed }: { state: LiveMatchSt
                                 <div>
                                     <p className="text-[9px] text-slate-500 uppercase font-black mb-2 tracking-widest">In-Form Bowlers</p>
                                     {inFormB.bowlers.map(p => {
-                                        const h2h = gameData.records.playerVsTeam?.[p.id]?.[teamA.id] || { wickets: 0 };
+                                        const h2h = gameData.records.playerVsTeam?.find(r => r.playerId === p.id && r.vsTeamId === teamA.id) || { wickets: 0 };
                                         return (
                                             <div key={p.id} className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700/30">
                                                 <div className="flex flex-col">

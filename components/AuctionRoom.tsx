@@ -78,6 +78,32 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
     const currentPlayer = sortedPool[currentPlayerIdx] || null;
     const userTeam = teams.find(t => t.id === gameData.userTeamId);
 
+    const canBid = useMemo(() => {
+        if (!userTeam || !isAuctioning || !currentPlayer) return false;
+        if (highestBidderId === userTeam.id) return false;
+        if (userTeam.squad.length >= 18) return false;
+        if (currentPlayer.isForeign && userTeam.squad.filter(p => p.isForeign).length >= MAX_FOREIGN_LIMIT) return false;
+        
+        const increment = getBidIncrement(currentBid);
+        const nextBid = Number((currentBid + increment).toFixed(2));
+        if (userTeam.purse < nextBid) return false;
+
+        return true;
+    }, [userTeam, isAuctioning, currentPlayer, highestBidderId, currentBid]);
+
+    const getBidButtonLabel = () => {
+        if (!userTeam || !currentPlayer) return "Loading...";
+        if (highestBidderId === userTeam.id) return "Leading Bidder";
+        if (userTeam.squad.length >= 18) return "Squad Full (Max 18)";
+        if (currentPlayer.isForeign && userTeam.squad.filter(p => p.isForeign).length >= MAX_FOREIGN_LIMIT) return "Foreign Limit Reached (Max 5)";
+        
+        const increment = getBidIncrement(currentBid);
+        const nextBid = Number((currentBid + increment).toFixed(2));
+        if (userTeam.purse < nextBid) return `Insufficient Purse (Needs ${nextBid.toFixed(1)} Cr)`;
+        
+        return `Place Bid (${nextBid.toFixed(2)} Cr)`;
+    };
+
     const getBasePrice = (player: Player) => {
         const rating = Math.max(player.battingSkill, player.secondarySkill);
         const isAllRounderOrBowler = [PlayerRole.ALL_ROUNDER, PlayerRole.SPIN_BOWLER, PlayerRole.FAST_BOWLER].includes(player.role);
@@ -88,6 +114,51 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         
         return 0.4; // 30 to 40 lac
     };
+
+    const getPlayerValuation = useCallback((player: Player, team: Team) => {
+        const rating = [PlayerRole.BATSMAN, PlayerRole.WICKET_KEEPER].includes(player.role)
+            ? player.battingSkill
+            : player.role === PlayerRole.ALL_ROUNDER
+            ? (player.battingSkill + player.secondarySkill) / 2 + 10
+            : player.secondarySkill;
+
+        const totalMatches = Object.values(player.stats).reduce((acc: number, s: any) => acc + (s.matches || 0), 0);
+        const experienceMult = (player.age >= 28 || totalMatches >= 50) ? 1.6 : 1.1;
+        
+        // Elite players are worth significantly more
+        const skillFactor = Math.pow(rating / 50, 4.5);
+        const baseValuation = (skillFactor * 2.5) * experienceMult;
+
+        // Needs factor
+        const squad = team.squad || [];
+        const roleCount = squad.filter(p => p.role === player.role).length;
+        let targetCount = 3;
+        if (player.role === PlayerRole.BATSMAN) targetCount = TARGET_BATTERS;
+        if (player.role === PlayerRole.WICKET_KEEPER) targetCount = TARGET_KEEPERS;
+        if (player.role === PlayerRole.ALL_ROUNDER) targetCount = TARGET_ALL_ROUNDERS;
+        if (player.role === PlayerRole.SPIN_BOWLER) targetCount = TARGET_SPINNERS;
+        if (player.role === PlayerRole.FAST_BOWLER) targetCount = TARGET_FAST;
+
+        let needFactor = 1.0;
+        if (roleCount >= targetCount + 2) {
+            needFactor = 0.5;
+        } else if (roleCount < targetCount / 2) {
+            needFactor = 1.6;
+        }
+
+        // Foreign player limit
+        if (player.isForeign) {
+            const foreignCount = squad.filter(p => p.isForeign).length;
+            if (foreignCount >= MAX_FOREIGN_LIMIT) {
+                return 0; // Absolute block
+            } else if (foreignCount === MAX_FOREIGN_LIMIT - 1) {
+                needFactor *= 0.5; // Reluctance
+            }
+        }
+
+        const personalityJitter = 0.8 + (Math.random() * 0.5);
+        return baseValuation * needFactor * personalityJitter;
+    }, []);
 
     const getBidIncrement = (current: number) => {
         if (current < 2.0) return 0.2;
@@ -154,12 +225,9 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         );
 
         if (eligibleTeams.length > 0) {
-            // AI evaluation for the skipped player
+            // AI evaluation for the skipped player using unified valuation
             const biddingTeams = eligibleTeams.filter(t => {
-                const rating = Math.max(currentPlayer.battingSkill, currentPlayer.secondarySkill);
-                const experienceMult = currentPlayer.age >= 28 ? 1.3 : 1.0; // Higher bias for experience
-                const skillFactor = Math.pow(rating / 50, 4.2);
-                const valuation = (skillFactor * 1.5) * experienceMult;
+                const valuation = getPlayerValuation(currentPlayer, t);
                 return (bp + 0.2) <= valuation;
             });
 
@@ -181,10 +249,9 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         }
         
         setTimeout(() => {
-            if (isAuctioning) return; // Prevent double progress if somehow re-triggered
             setCurrentPlayerIdx(prev => prev + 1);
             setIsProcessing(false);
-        }, 2000); 
+        }, 1200); 
     };
 
     const autoAuctionRemaining = () => {
@@ -208,48 +275,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
             if (eligibleTeams.length > 0) {
                 const biddingTeam = eligibleTeams.find(t => {
                     if (t.id === gameData.userTeamId) return false;
-                    
-                    // Improved AI Valuation Logic: Experience & High Skill Preference
-                    // Non-linear scaling: Elite players (75+) are worth significantly more.
-                    // Veterans (28+) get a valuation multiplier to represent "Proven Experience".
-                    // Also consider total matches across all formats as experience.
-                    const totalMatches: number = (Object.values(currentPlayer.stats) as any[]).reduce((acc: number, s: any) => acc + (s.matches || 0), 0);
-                    const experienceMult = (currentPlayer.age >= 28 || totalMatches >= 50) ? 1.6 : 1.1;
-                    const rating = (currentPlayer.battingSkill + currentPlayer.secondarySkill) / 2;
-                    const skillFactor = Math.pow(rating / 50, 4.5);
-                    let baseValuation = (skillFactor * 2.5) * experienceMult;
-
-
-                    // Adjust based on team needs
-                    const squad = t.squad;
-                    const roleCount = squad.filter(p => p.role === currentPlayer.role).length;
-                    
-                    let targetCount = 3;
-                    if (currentPlayer.role === PlayerRole.BATSMAN) targetCount = TARGET_BATTERS;
-                    if (currentPlayer.role === PlayerRole.WICKET_KEEPER) targetCount = TARGET_KEEPERS;
-                    if (currentPlayer.role === PlayerRole.ALL_ROUNDER) targetCount = TARGET_ALL_ROUNDERS;
-                    if (currentPlayer.role === PlayerRole.SPIN_BOWLER) targetCount = TARGET_SPINNERS;
-                    if (currentPlayer.role === PlayerRole.FAST_BOWLER) targetCount = TARGET_FAST;
-
-                    let needFactor = 1.0;
-                    if (roleCount >= targetCount + 2) {
-                        needFactor = 0.6; // Slightly less valuable if already well-stocked
-                    } else if (roleCount < targetCount / 2) {
-                        needFactor = 1.4; // Very eager for this role
-                    }
-
-                    // Foreign player penalty if close to limit - make it less harsh
-                    if (currentPlayer.isForeign) {
-                        const foreignCount = squad.filter(p => p.isForeign).length;
-                        if (foreignCount >= MAX_FOREIGN_LIMIT) {
-                            needFactor *= 0.1;
-                        }
-                    }
-
-                    // Personality jitter - slightly more willing to bid
-                    const personalityJitter = 0.8 + (Math.random() * 0.5);
-                    const finalValuation = baseValuation * needFactor * personalityJitter;
-
+                    const finalValuation = getPlayerValuation(currentPlayer, t);
                     return (currentBid + increment) <= finalValuation;
                 });
 
@@ -293,7 +319,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         }, 1200 + Math.random() * 800);
 
         return () => clearTimeout(timer);
-    }, [isAuctioning, currentBid, highestBidderId, currentPlayer, gameData.userTeamId, mainTeamIds, teams, countdown]);
+    }, [isAuctioning, currentBid, highestBidderId, currentPlayer, gameData.userTeamId, mainTeamIds, teams, countdown, getPlayerValuation]);
 
     const sellPlayer = () => {
         setIsAuctioning(false);
@@ -515,14 +541,16 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
                                 <div className="flex flex-col gap-3">
                                     <button 
                                         onClick={() => handleUserBid()}
-                                        disabled={!isAuctioning || (highestBidderId === userTeam?.id) || (userTeam?.purse || 0) < (currentBid + getBidIncrement(currentBid))}
+                                        disabled={!canBid}
                                         className={`w-full py-5 rounded-2xl font-black text-2xl italic uppercase tracking-tighter shadow-2xl transition-all transform active:scale-95 ${
                                             highestBidderId === userTeam?.id 
-                                            ? 'bg-emerald-900/40 border-2 border-emerald-500 text-emerald-400' 
+                                            ? 'bg-emerald-950/20 border-2 border-emerald-500 text-emerald-400' 
+                                            : !canBid
+                                            ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed opacity-40'
                                             : 'bg-teal-500 hover:bg-teal-400 text-black'
-                                        } disabled:opacity-20`}
+                                        }`}
                                     >
-                                        Place Bid ({(currentBid + getBidIncrement(currentBid)).toFixed(2)})
+                                        {getBidButtonLabel()}
                                     </button>
                                     
                                     <div className="grid grid-cols-2 gap-3 mt-1">

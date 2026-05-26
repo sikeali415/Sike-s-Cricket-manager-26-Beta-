@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { GameData, Format, Player, Team } from '../types';
 import { Icons } from './Icons';
 import { getRoleFullName, getPlayerBasePrice, getPlayerMarketPrice } from '../utils';
+import { calculateSeasonAwards } from '../utils/awardUtils';
 
 interface EndOfFormatScreenProps {
     gameData: GameData;
@@ -22,8 +23,14 @@ const EndOfFormatScreen: React.FC<EndOfFormatScreenProps> = ({ gameData, handleF
     const userTeam = useMemo(() => gameData.teams.find(t => t.id === gameData.userTeamId), [gameData]);
     
     const lastAward = useMemo(() => {
-        return gameData.awardsHistory.find(a => a.season === gameData.currentSeason && a.format === gameData.currentFormat) 
-            || gameData.awardsHistory[gameData.awardsHistory.length - 1];
+        const found = gameData.awardsHistory.find(a => a.season === gameData.currentSeason && a.format === gameData.currentFormat);
+        if (found) return found;
+
+        try {
+            return calculateSeasonAwards(gameData, gameData.currentFormat);
+        } catch (e) {
+            return gameData.awardsHistory[gameData.awardsHistory.length - 1];
+        }
     }, [gameData.awardsHistory, gameData.currentSeason, gameData.currentFormat]);
     
     const formatsOrder = [
