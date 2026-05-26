@@ -1,0 +1,17 @@
+{
+  "name": "Cricket Manager 26",
+  "short_name": "CM26",
+  "description": "Premium Cricket Management Simulator with Real-time Analysis",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/isometric/512/cricket.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
