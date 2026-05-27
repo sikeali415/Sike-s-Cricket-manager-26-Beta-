@@ -1,6 +1,7 @@
-const CACHE_NAME = 'cm25-v2';
+const CACHE_NAME = 'cm25-v3';
 const ASSETS = [
   '/',
+  '/?source=pwa',
   '/index.html',
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap'
