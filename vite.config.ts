@@ -8,7 +8,9 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       plugins: [
-        react(),
+        react({
+          fastRefresh: false
+        }),
         tailwindcss()
       ],
       define: {
