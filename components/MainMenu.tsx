@@ -10,9 +10,11 @@ interface MainMenuProps {
     user: User | null;
     onSignIn: () => void;
     onSignOut: () => void;
+    onInstall?: () => void;
+    isInstallable?: boolean;
 }
 
-const MainMenu: React.FC<MainMenuProps> = ({ onStartNewGame, onResumeGame, hasSaveData, user, onSignIn, onSignOut }) => (
+const MainMenu: React.FC<MainMenuProps> = ({ onStartNewGame, onResumeGame, hasSaveData, user, onSignIn, onSignOut, onInstall, isInstallable }) => (
     <div className="h-full flex flex-col items-center justify-center p-8 bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 1)), url('https://images.unsplash.com/photo-1595435942477-f5439483405a?q=80&w=2070&auto=format&fit=crop')" }}>
         <div className="h-full w-full absolute top-0 left-0 bg-gradient-to-b dark:from-black/70 dark:to-[#2C3531] from-gray-100/70 to-gray-50"></div>
         
@@ -58,6 +60,15 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStartNewGame, onResumeGame, hasSa
                 >
                     {hasSaveData ? "Start New Game" : "Start Career"}
                 </button>
+                {isInstallable && (
+                    <button
+                        onClick={onInstall}
+                        className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-black py-2 px-6 rounded-xl border border-emerald-500/20 w-full text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Install App (Offline)
+                    </button>
+                )}
                 {hasSaveData && (
                     <button
                         onClick={() => {

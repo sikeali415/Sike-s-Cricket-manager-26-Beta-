@@ -188,6 +188,7 @@ export interface LiveMatchState {
     autoPlayType: 'regular' | 'inning' | 'match' | null; 
     tossWinnerId: string | null; 
     tossDecision: 'bat' | 'bowl' | null;
+    winId?: string;
     milestoneEvent?: {
         title: string;
         message: string;

@@ -10,6 +10,7 @@ import MainMenu from './components/MainMenu';
 import TeamSelection from './components/TeamSelection';
 import CareerHub from './components/CareerHub';
 import AuctionRoom from './components/AuctionRoom';
+import InstallPopup from './components/InstallPopup';
 
 export const MAX_SQUAD_SIZE = 18;
 export const MIN_SQUAD_SIZE = 12;
@@ -48,6 +49,24 @@ export const App = () => {
     }
     setDeferredPrompt(null);
     setShowInstallBtn(false);
+  };
+
+  useEffect(() => {
+    // Show install popup automatically after 3 seconds if on main menu and not already dismissed
+    const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+    const dismissed = localStorage.getItem('installPromptDismissed');
+    
+    if (appState === 'MAIN_MENU' && !isInstalled && !dismissed) {
+      const timer = setTimeout(() => {
+        setShowInstallBtn(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [appState]);
+
+  const handleCloseInstallPopup = () => {
+    setShowInstallBtn(false);
+    localStorage.setItem('installPromptDismissed', 'true');
   };
 
   useEffect(() => {
@@ -272,7 +291,18 @@ export const App = () => {
         return <div className="bg-white dark:bg-gray-900 h-full flex items-center justify-center"><LoadingSpinner /></div>;
     }
     switch(appState) {
-        case 'MAIN_MENU': return <MainMenu onStartNewGame={handleStartNewGame} onResumeGame={resumeGame} hasSaveData={hasSaveData} user={user} onSignIn={signIn} onSignOut={signOutUser} />;
+        case 'MAIN_MENU': return (
+            <MainMenu 
+                onStartNewGame={handleStartNewGame} 
+                onResumeGame={resumeGame} 
+                hasSaveData={hasSaveData} 
+                user={user} 
+                onSignIn={signIn} 
+                onSignOut={signOutUser}
+                onInstall={() => setShowInstallBtn(true)}
+                isInstallable={!window.matchMedia('(display-mode: standalone)').matches}
+            />
+        );
         case 'TEAM_SELECTION': return <TeamSelection onTeamSelected={initializeNewGame} theme={theme} />;
         case 'AUCTION': return gameData ? <AuctionRoom gameData={gameData} onAuctionComplete={handleAuctionComplete} /> : null;
         case 'CAREER_HUB': return gameData ? <CareerHub gameData={gameData} setGameData={setGameData} onResetGame={resetGame} theme={theme} setTheme={setTheme} saveGame={saveGame} loadGame={loadGame} showFeedback={showFeedback} /> : null;
@@ -283,17 +313,11 @@ export const App = () => {
   return (
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen flex items-center justify-center font-sans">
       <div className="w-full max-w-md h-screen max-h-[932px] bg-gray-50 dark:bg-[#2C3531] border-4 border-gray-300 dark:border-gray-700 rounded-[60px] shadow-2xl shadow-black/50 overflow-hidden relative text-gray-900 dark:text-gray-200 flex flex-col">
-        {showInstallBtn && (
-          <div className="bg-teal-600 dark:bg-teal-700 text-white p-3 text-xs flex justify-between items-center relative z-50 animate-pulse">
-            <span className="font-bold">📱 Play Offline: Install App!</span>
-            <button
-              onClick={handleInstallClick}
-              className="bg-white dark:bg-gray-900 text-teal-600 dark:text-teal-400 font-extrabold px-3 py-1 rounded shadow hover:bg-teal-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              INSTALL
-            </button>
-          </div>
-        )}
+        <InstallPopup 
+          isVisible={showInstallBtn} 
+          onClose={handleCloseInstallPopup} 
+          onInstall={handleInstallClick} 
+        />
         {renderContent()}
         {feedbackMessage && (
             <div className={`absolute bottom-28 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg z-50 shadow-lg text-white font-semibold ${feedbackMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
