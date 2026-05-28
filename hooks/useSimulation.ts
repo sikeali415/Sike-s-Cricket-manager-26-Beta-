@@ -311,9 +311,59 @@ export const useSimulation = (gameData: GameData, setGameData: React.Dispatch<Re
         const secondInning = simulateInning(teamB, teamA, gameData.currentFormat, firstInning.score, pitch, homeGround?.code || 'KCG', 2, [...teamAPlayers, ...teamBPlayers], playerForms);
 
         let winnerId: string | null = null, loserId: string | null = null, summary = '';
-        if (secondInning.score > firstInning.score) { winnerId = teamB.id; loserId = teamA.id; summary = `${teamB.name} won by ${10 - secondInning.wickets} wickets.`; }
-        else if (firstInning.score > secondInning.score) { winnerId = teamA.id; loserId = teamB.id; summary = `${teamA.name} won by ${firstInning.score - secondInning.score} runs.`; }
-        else { summary = "Match Tied."; winnerId = null; loserId = null; }
+        if (secondInning.score > firstInning.score) { 
+            winnerId = teamB.id; loserId = teamA.id; summary = `${teamB.name} won by ${10 - secondInning.wickets} wickets.`; 
+        } else if (firstInning.score > secondInning.score) { 
+            winnerId = teamA.id; loserId = teamB.id; summary = `${teamA.name} won by ${firstInning.score - secondInning.score} runs.`; 
+        } else { 
+            const isT20 = gameData.currentFormat.includes('T20');
+            const maxBalls = (isT20 ? 20 : 50) * 6;
+            
+            const getInningBalls = (inn: Inning) => {
+                const parts = inn.overs.split('.');
+                return (parseInt(parts[0]) * 6) + (parseInt(parts[1]) || 0);
+            };
+            
+            const ballsA = getInningBalls(firstInning);
+            const ballsB = getInningBalls(secondInning);
+            const remBallsA = maxBalls - ballsA;
+            const remBallsB = maxBalls - ballsB;
+            const remWktsA = 10 - firstInning.wickets;
+            const remWktsB = 10 - secondInning.wickets;
+
+            let tieWinnerId = '';
+            let tieReason = '';
+
+            if (remBallsB > remBallsA) {
+                tieWinnerId = teamB.id;
+                tieReason = `won by more balls remaining (${remBallsB} vs ${remBallsA})`;
+            } else if (remBallsA > remBallsB) {
+                tieWinnerId = teamA.id;
+                tieReason = `won by more balls remaining (${remBallsA} vs ${remBallsB})`;
+            } else if (remWktsB > remWktsA) {
+                tieWinnerId = teamB.id;
+                tieReason = `won by wickets remaining (${remWktsB} vs ${remWktsA})`;
+            } else if (remWktsA > remWktsB) {
+                tieWinnerId = teamA.id;
+                tieReason = `won by wickets remaining (${remWktsA} vs ${remWktsB})`;
+            } else {
+                const standings = gameData.standings[gameData.currentFormat];
+                const rankA = standings.findIndex(s => s.teamId === teamA.id);
+                const rankB = standings.findIndex(s => s.teamId === teamB.id);
+                if (rankB < rankA && rankB !== -1) {
+                    tieWinnerId = teamB.id;
+                    tieReason = "won by higher league standing";
+                } else {
+                    tieWinnerId = teamA.id;
+                    tieReason = "won by better standing";
+                }
+            }
+
+            winnerId = tieWinnerId;
+            loserId = tieWinnerId === teamA.id ? teamB.id : teamA.id;
+            const winnerName = winnerId === teamA.id ? teamA.name : teamB.name;
+            summary = `Match Tied - ${winnerName} ${tieReason}`;
+        }
 
         const result: MatchResult = { matchNumber: match.matchNumber, winnerId, loserId, summary, firstInning, secondInning, manOfTheMatch: { playerId: '', playerName: '', teamId: '', summary: '' } };
         result.manOfTheMatch = getPlayerOfTheMatch(result);
@@ -335,9 +385,55 @@ export const useSimulation = (gameData: GameData, setGameData: React.Dispatch<Re
         const fourthInning = simulateInning(teamB, teamA, gameData.currentFormat, target, homeGround?.pitch || "Balanced", homeGround?.code || 'KCG', 4, [...teamAPlayers, ...teamBPlayers], playerForms);
 
         let winnerId: string | null = null, loserId: string | null = null, summary = '';
-        if (fourthInning.score >= target) { winnerId = teamB.id; loserId = teamA.id; summary = `${teamB.name} won by ${10 - fourthInning.wickets} wickets.`; }
-        else if (fourthInning.wickets >= 10) { winnerId = teamA.id; loserId = teamB.id; summary = `${teamA.name} won by ${target - 1 - fourthInning.score} runs.`; }
-        else { summary = 'Match Drawn.'; winnerId = null; loserId = null; }
+        if (fourthInning.score >= target) { 
+            winnerId = teamB.id; loserId = teamA.id; summary = `${teamB.name} won by ${10 - fourthInning.wickets} wickets.`; 
+        } else if (fourthInning.wickets >= 10) { 
+            const isTie = fourthInning.score === (target - 1);
+            if (isTie) {
+                const maxBalls = 540; // 90 overs
+                const getInningBalls = (inn: Inning) => {
+                    const parts = inn.overs.split('.');
+                    return (parseInt(parts[0]) * 6) + (parseInt(parts[1]) || 0);
+                };
+                // In FC, we compare 4th vs 3rd? Or total balls used in match?
+                // Rule usually applies to the deciding innings
+                // Let's keep it consistent: match-wide or inning specific?
+                // "first remaining balls": usually implies the team that made more progress with fewer resources
+                const ballsUsedA = getInningBalls(thirdInning); // Third inning is Team A's last
+                const ballsUsedB = getInningBalls(fourthInning); // Fourth inning is Team B's last
+                
+                const wktsLostA = thirdInning.wickets;
+                const wktsLostB = fourthInning.wickets;
+
+                let tieWinnerId = '';
+                let tieReason = '';
+
+                if (maxBalls - ballsUsedB > maxBalls - ballsUsedA) {
+                    tieWinnerId = teamB.id;
+                    tieReason = "won by balls remaining";
+                } else if (maxBalls - ballsUsedA > maxBalls - ballsUsedB) {
+                    tieWinnerId = teamA.id;
+                    tieReason = "won by balls remaining";
+                } else if ((10 - wktsLostB) > (10 - wktsLostA)) {
+                    tieWinnerId = teamB.id;
+                    tieReason = "won by higher wickets remaining";
+                } else {
+                    const standings = gameData.standings[gameData.currentFormat];
+                    const rankA = standings.findIndex(s => s.teamId === teamA.id);
+                    const rankB = standings.findIndex(s => s.teamId === teamB.id);
+                    if (rankB < rankA && rankB !== -1) tieWinnerId = teamB.id;
+                    else tieWinnerId = teamA.id;
+                    tieReason = "won by standing";
+                }
+                
+                winnerId = tieWinnerId;
+                loserId = winnerId === teamA.id ? teamB.id : teamA.id;
+                const winnerName = winnerId === teamA.id ? teamA.name : teamB.name;
+                summary = `Match Tied - ${winnerName} ${tieReason}`;
+            } else {
+                winnerId = teamA.id; loserId = teamB.id; summary = `${teamA.name} won by ${target - 1 - fourthInning.score} runs.`; 
+            }
+        } else { summary = 'Match Drawn.'; winnerId = null; loserId = null; }
 
         const result: MatchResult = { matchNumber: match.matchNumber, winnerId, loserId, summary, firstInning, secondInning, thirdInning, fourthInning, manOfTheMatch: { playerId: '', playerName: '', teamId: '', summary: '' } };
         result.manOfTheMatch = getPlayerOfTheMatch(result);

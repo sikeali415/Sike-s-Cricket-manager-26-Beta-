@@ -70,7 +70,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
     const [highestBidderId, setHighestBidderId] = useState<string | null>(null);
     const [isAuctioning, setIsAuctioning] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [biddingLog, setBiddingLog] = useState<string[]>([]);
+    const [biddingLog, setBiddingLog] = useState<string[]>(["Welcome to the Session 1 Draft Room! Initializing lots..."]);
     const [auctionFinished, setAuctionFinished] = useState(false);
     const [currentLotBids, setCurrentLotBids] = useState<{teamName: string, bid: number}[]>([]);
     const [countdown, setCountdown] = useState<number>(3);
@@ -513,6 +513,10 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
                                 </div>
 
                                 <div className="bg-black/40 rounded-2xl p-4 mb-4 text-center border border-white/5">
+                                    <div className="absolute top-2 right-4 flex flex-col items-end opacity-60">
+                                        <span className="text-[7px] uppercase font-black tracking-tighter text-slate-400">Base Price</span>
+                                        <span className="text-[10px] font-black italic text-slate-300">{(currentPlayer ? getBasePrice(currentPlayer) : 0).toFixed(2)} Cr</span>
+                                    </div>
                                     <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest block mb-2">CURRENT BID</span>
                                     <div className="text-6xl font-black text-yellow-400 tabular-nums tracking-tighter">
                                         {currentBid.toFixed(2)} <span className="text-2xl ml-[-10px]">Cr</span>
@@ -555,7 +559,10 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
                                     
                                     <div className="grid grid-cols-2 gap-3 mt-1">
                                         <button onClick={skipPlayer} className="bg-slate-900/60 hover:bg-slate-700 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5">Pass / Skip</button>
-                                        <button onClick={autoAuctionRemaining} className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 py-4 rounded-2xl text-[10px] font-black text-red-300 uppercase tracking-widest">Random Auto-Draft</button>
+                                        <button onClick={() => {
+                                            if (!isAuctioning && !isProcessing) startNextPlayer();
+                                        }} className="bg-slate-900/60 hover:bg-slate-700 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5">Next Lot</button>
+                                        <button onClick={autoAuctionRemaining} className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 py-4 rounded-2xl text-[10px] font-black text-red-300 uppercase tracking-widest col-span-2">Random Auto-Draft Remaining</button>
                                     </div>
                                 </div>
                             </div>

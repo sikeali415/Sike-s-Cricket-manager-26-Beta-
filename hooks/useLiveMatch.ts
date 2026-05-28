@@ -861,7 +861,52 @@ export const useLiveMatch = (
                     if (currentInning.score > target!) {
                         resultText = `${battingTeam.name} won by ${10 - currentInning.wickets} wickets`;
                     } else if (currentInning.score === target!) {
-                        resultText = "Match Tied";
+                        const maxBalls = (gameData.currentFormat.includes('T20')) ? 120 : (gameData.currentFormat.includes('ODI-Cup') || gameData.currentFormat.includes('One-Day') || gameData.currentFormat.includes('Cup')) ? 300 : 540;
+                        const getInningBalls = (inn: Inning) => {
+                            const parts = inn.overs.split('.');
+                            return (parseInt(parts[0]) * 6) + (parseInt(parts[1]) || 0);
+                        };
+                        const ballsA = getInningBalls(innings[0]);
+                        const ballsB = getInningBalls(innings[1]);
+                        const wicketsA = innings[0].wickets;
+                        const wicketsB = innings[1].wickets;
+                        
+                        const remBallsA = maxBalls - ballsA;
+                        const remBallsB = maxBalls - ballsB;
+                        const remWktsA = 10 - wicketsA;
+                        const remWktsB = 10 - wicketsB;
+
+                        let tieWinnerId = '';
+                        let tieReason = '';
+
+                        if (remBallsB > remBallsA) {
+                            tieWinnerId = battingTeam.id;
+                            tieReason = `won by more balls remaining (${remBallsB} vs ${remBallsA})`;
+                        } else if (remBallsA > remBallsB) {
+                            tieWinnerId = bowlingTeam.id;
+                            tieReason = `won by more balls remaining (${remBallsA} vs ${remBallsB})`;
+                        } else if (remWktsB > remWktsA) {
+                            tieWinnerId = battingTeam.id;
+                            tieReason = `won by wickets remaining (${remWktsB} vs ${remWktsA})`;
+                        } else if (remWktsA > remWktsB) {
+                            tieWinnerId = bowlingTeam.id;
+                            tieReason = `won by wickets remaining (${remWktsA} vs ${remWktsB})`;
+                        } else {
+                            const standings = gameData.standings[gameData.currentFormat];
+                            const rankA = standings.findIndex(s => s.teamId === innings[0].teamId);
+                            const rankB = standings.findIndex(s => s.teamId === innings[1].teamId);
+                            // Lower index is better standing
+                            if (rankB < rankA && rankB !== -1) {
+                                tieWinnerId = battingTeam.id;
+                                tieReason = "won by higher league standing";
+                            } else {
+                                tieWinnerId = bowlingTeam.id;
+                                tieReason = rankA !== -1 ? "won by higher league standing" : "won by technicality";
+                            }
+                        }
+
+                        const winnerName = tieWinnerId === battingTeam.id ? battingTeam.name : bowlingTeam.name;
+                        resultText = `Match Tied - ${winnerName} ${tieReason}`;
                     } else {
                         resultText = `${bowlingTeam.name} won by ${target! - currentInning.score} runs`;
                     }
@@ -872,7 +917,33 @@ export const useLiveMatch = (
                 stopAutoPlay(); // Ensure stopped
                 
                 // Identify Match Winner Performance
-                const winId = currentInning.score > target! ? battingTeam.id : bowlingTeam.id;
+                const isTie = currentInning.score === target!;
+                let winId = currentInning.score > target! ? battingTeam.id : bowlingTeam.id;
+                
+                // If it was a tie, we need to re-evaluate winId using the same logic as above
+                if (isTie) {
+                    const maxBalls = (gameData.currentFormat.includes('T20')) ? 120 : (gameData.currentFormat.includes('ODI-Cup') || gameData.currentFormat.includes('One-Day') || gameData.currentFormat.includes('Cup')) ? 300 : 540;
+                    const getInningBalls = (inn: Inning) => {
+                        const parts = inn.overs.split('.');
+                        return (parseInt(parts[0]) * 6) + (parseInt(parts[1]) || 0);
+                    };
+                    const ballsA = getInningBalls(innings[0]);
+                    const ballsB = getInningBalls(innings[1]);
+                    const remBallsA = maxBalls - ballsA;
+                    const remBallsB = maxBalls - ballsB;
+                    if (remBallsB > remBallsA) winId = battingTeam.id;
+                    else if (remBallsA > remBallsB) winId = bowlingTeam.id;
+                    else if ((10 - innings[1].wickets) > (10 - innings[0].wickets)) winId = battingTeam.id;
+                    else if ((10 - innings[0].wickets) > (10 - innings[1].wickets)) winId = bowlingTeam.id;
+                    else {
+                        const standings = gameData.standings[gameData.currentFormat];
+                        const rankA = standings.findIndex(s => s.teamId === innings[0].teamId);
+                        const rankB = standings.findIndex(s => s.teamId === innings[1].teamId);
+                        if (rankB < rankA && rankB !== -1) winId = battingTeam.id;
+                        else winId = bowlingTeam.id;
+                    }
+                }
+
                 const winnerBatters = innings[currentInningIndex].teamId === winId ? innings[currentInningIndex].batting : innings[0].batting;
                 const winnerBowlers = innings[currentInningIndex].teamId === winId ? innings[currentInningIndex].bowling : innings[0].bowling;
                 
@@ -890,8 +961,8 @@ export const useLiveMatch = (
                     summary: resultText,
                     firstInning: innings[0],
                     secondInning: innings[1],
-                    winnerId: currentInning.score > target! ? battingTeam.id : bowlingTeam.id,
-                    loserId: currentInning.score > target! ? bowlingTeam.id : battingTeam.id,
+                    winnerId: winId,
+                    loserId: winId === battingTeam.id ? bowlingTeam.id : battingTeam.id,
                     manOfTheMatch: { playerId: '', playerName: 'TBD', teamId: '', summary: '' },
                     tossWinnerId: newState.tossWinnerId || undefined,
                     tossDecision: newState.tossDecision || undefined
