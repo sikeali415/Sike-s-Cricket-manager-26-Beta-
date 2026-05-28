@@ -33,9 +33,9 @@ const InstallPopup: React.FC<InstallPopupProps> = ({ isVisible, onClose, onInsta
                 />
               </div>
               
-              <h3 className="text-xl font-bold text-white mb-2">Install CM25</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Offline Ready (APK Mode)</h3>
               <p className="text-slate-400 text-sm mb-6">
-                Install Sike's Cricket Manager 25 on your home screen for a full-screen, offline experience.
+                This Web App works just like an APK. Install to your home screen to play without internet and get full-screen view.
               </p>
 
               <div className="space-y-3">

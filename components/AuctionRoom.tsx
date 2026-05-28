@@ -42,8 +42,8 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
 
     const [activeOverlay, setActiveOverlay] = useState<'none' | 'franchises' | 'pool'>('none');
 
-    // Sorted Pool with priority for last season performers
-    const sortedPool = useMemo(() => {
+    // Stabilize the pool at the start of the auction
+    const [initialSortedPool] = useState(() => {
         const retainedPlayerIds = new Set(teams.flatMap(t => t.squad.map(p => p.id)));
         const allAvailable = gameData.allPlayers.filter(pl => !retainedPlayerIds.has(pl.id));
         
@@ -63,7 +63,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
             const skillB = Math.max(b.battingSkill, b.secondarySkill);
             return skillB - skillA;
         });
-    }, [gameData.allPlayers, teams]);
+    });
 
     const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
     const [currentBid, setCurrentBid] = useState(0);
@@ -75,7 +75,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
     const [currentLotBids, setCurrentLotBids] = useState<{teamName: string, bid: number}[]>([]);
     const [countdown, setCountdown] = useState<number>(3);
 
-    const currentPlayer = sortedPool[currentPlayerIdx] || null;
+    const currentPlayer = initialSortedPool[currentPlayerIdx] || null;
     const userTeam = teams.find(t => t.id === gameData.userTeamId);
 
     const canBid = useMemo(() => {
@@ -170,12 +170,12 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
     const startNextPlayer = useCallback(() => {
         if (auctionFinished || isProcessing) return;
 
-        if (currentPlayerIdx >= sortedPool.length) {
+        if (currentPlayerIdx >= initialSortedPool.length) {
             setAuctionFinished(true);
             return;
         }
 
-        const player = sortedPool[currentPlayerIdx];
+        const player = initialSortedPool[currentPlayerIdx];
         if (!player) {
             setCurrentPlayerIdx(prev => prev + 1);
             return;
@@ -189,7 +189,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         setCurrentLotBids([]);
         setCountdown(3);
         setBiddingLog(prev => [`Lot #${currentPlayerIdx + 1}: ${player.name} (${getRoleFullName(player.role)}) up for ${bp.toFixed(2)} Cr`, ...prev.slice(0, 5)]);
-    }, [currentPlayerIdx, sortedPool, auctionFinished, isProcessing]);
+    }, [currentPlayerIdx, initialSortedPool, auctionFinished, isProcessing]);
 
     const handleUserBid = () => {
         if (!userTeam || !isAuctioning || !currentPlayer) return;
@@ -358,7 +358,7 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         if (!isAuctioning && !auctionFinished && !isProcessing) {
             startNextPlayer();
         }
-    }, [currentPlayerIdx, sortedPool, isAuctioning, auctionFinished, isProcessing, startNextPlayer]);
+    }, [currentPlayerIdx, initialSortedPool, isAuctioning, auctionFinished, isProcessing, startNextPlayer]);
 
     const finishAuction = () => {
         const soldPlayerIds = new Set(teams.flatMap(t => t.squad.map(p => p.id)));
@@ -562,7 +562,10 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
                                         <button onClick={() => {
                                             if (!isAuctioning && !isProcessing) startNextPlayer();
                                         }} className="bg-slate-900/60 hover:bg-slate-700 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/5">Next Lot</button>
-                                        <button onClick={autoAuctionRemaining} className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 py-4 rounded-2xl text-[10px] font-black text-red-300 uppercase tracking-widest col-span-2">Random Auto-Draft Remaining</button>
+                                        <button onClick={autoAuctionRemaining} className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 py-4 rounded-2xl text-[10px] font-black text-red-300 uppercase tracking-widest col-span-2 shadow-inner">
+                                            <span className="opacity-50">Experimental</span><br/>
+                                            Bypass Draft (Auto-Complete)
+                                        </button>
                                     </div>
                                 </div>
                             </div>

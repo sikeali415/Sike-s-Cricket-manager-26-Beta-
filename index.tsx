@@ -5,6 +5,10 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import { App } from './App.tsx';
 import { FirebaseProvider } from './components/FirebaseProvider';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register service worker for offline support
+registerSW({ immediate: true });
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
