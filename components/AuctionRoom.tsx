@@ -158,11 +158,59 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
         setCurrentPlayerIdx(prev => prev + 1);
     };
 
-    const autoAuctionRemaining = () => {
+    const finalizeAuction = (currentTeams: Team[]) => {
         setIsAuctioning(false);
         setIsProcessing(true);
         setAuctionFinished(true);
-        onAuctionComplete(teams); // In a real app we'd auto-fill here, but for now we just finish
+
+        const soldPlayerIds = new Set(currentTeams.flatMap(t => t.squad.map(p => p.id)));
+        const unauctioned = gameData.allPlayers.filter(p => !soldPlayerIds.has(p.id));
+        let pool = [...unauctioned].sort((a, b) => {
+            const skillA = Math.max(a.battingSkill, a.secondarySkill);
+            const skillB = Math.max(b.battingSkill, b.secondarySkill);
+            return skillB - skillA;
+        });
+
+        const finalTeams = currentTeams.map(team => {
+            const targetTotalSize = 16;
+            let squad = [...team.squad];
+            let purse = team.purse;
+
+            const fillNeeded = (role: PlayerRole, count: number) => {
+                let existing = squad.filter(p => p.role === role).length;
+                while (existing < count && pool.length > 0) {
+                    const idx = pool.findIndex(p => p.role === role);
+                    if (idx !== -1) {
+                        const p = pool.splice(idx, 1)[0];
+                        squad.push(p);
+                        existing++;
+                        purse = Math.max(0, Number((purse - 0.25).toFixed(2)));
+                    } else break;
+                }
+            };
+
+            // Basic balance
+            if (squad.length < targetTotalSize) {
+                fillNeeded(PlayerRole.WICKET_KEEPER, 1);
+                fillNeeded(PlayerRole.ALL_ROUNDER, 2);
+                fillNeeded(PlayerRole.SPIN_BOWLER, 2);
+                fillNeeded(PlayerRole.FAST_BOWLER, 3);
+            }
+
+            // Final fill to 16
+            while (squad.length < targetTotalSize && pool.length > 0) {
+                squad.push(pool.shift()!);
+                purse = Math.max(0, Number((purse - 0.25).toFixed(2)));
+            }
+
+            return { ...team, squad, purse };
+        });
+
+        onAuctionComplete(finalTeams);
+    };
+
+    const autoAuctionRemaining = () => {
+        finalizeAuction(teams);
     };
 
     useEffect(() => {
@@ -414,10 +462,10 @@ const AuctionRoom: React.FC<AuctionRoomProps> = ({ gameData, onAuctionComplete }
                             <h2 className="text-3xl font-black italic uppercase tracking-tighter">Draft Completed</h2>
                             <p className="text-slate-500 text-sm mb-8">All squads are finalized for Season 1 Launch.</p>
                             <button 
-                                onClick={() => onAuctionComplete(teams)}
+                                onClick={() => finalizeAuction(teams)}
                                 className="bg-teal-500 text-black font-black px-12 py-4 rounded-2xl text-xl italic uppercase tracking-tighter shadow-xl shadow-teal-500/20"
                             >
-                                Proceed to Hub
+                                Finalize & Proceed
                             </button>
                         </div>
                     )}

@@ -59,7 +59,7 @@ export const App = () => {
     if (appState === 'MAIN_MENU' && !isInstalled && !dismissed) {
       const timer = setTimeout(() => {
         setShowInstallBtn(true);
-      }, 3000);
+      }, 5000); // 5 seconds instead of 3
       return () => clearTimeout(timer);
     }
   }, [appState]);
