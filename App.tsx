@@ -188,8 +188,11 @@ export const App = () => {
         let squad: Player[] = [];
         let foreignCount = 0;
 
+        // For auction mode, we only initialize with a few core players (e.g., 4)
+        const targetRetainedSize = 4;
+
         // Start with pre-built core (usually first few established players)
-        const preBuiltIds = (PRE_BUILT_SQUADS[teamData.id] || []).slice(0, 4);
+        const preBuiltIds = (PRE_BUILT_SQUADS[teamData.id] || []).slice(0, targetRetainedSize);
         preBuiltIds.forEach(pid => {
             const p = PLAYERS.find(pl => pl.id === pid);
             if (p && !usedPlayerIds.has(pid)) {
@@ -199,15 +202,9 @@ export const App = () => {
             }
         });
 
-        // Fill remaining squad randomly from balanced roles
-        const roles = ['BAT', 'WK', 'BL', 'SB', 'AR'];
-        while (squad.length < targetSquadSize) {
-            const leftoverIndex = allPlayersPool.findIndex(p => {
-                if (usedPlayerIds.has(p.id)) return false;
-                if (p.isForeign && foreignCount >= maxForeign) return false;
-                return true;
-            });
-
+        // Ensure we have exactly targetRetainedSize to start
+        while (squad.length < targetRetainedSize) {
+            const leftoverIndex = allPlayersPool.findIndex(p => !usedPlayerIds.has(p.id));
             if (leftoverIndex !== -1) {
                 const p = allPlayersPool[leftoverIndex];
                 squad.push(JSON.parse(JSON.stringify(p)));
@@ -223,7 +220,7 @@ export const App = () => {
             name: teamData.name, 
             squad, 
             captains: {}, 
-            purse: 20.0, // Remaining purse for mid-season
+            purse: 100.0, // Full purse for auction
             firstAidKits: 2 
         };
     });
@@ -280,12 +277,12 @@ export const App = () => {
     };
 
     setGameData(newGameData);
-    setAppState('CAREER_HUB'); // Jump straight to Career Hub
+    setAppState('AUCTION'); // Re-enable Auction
     setIsLoading(false);
     
     // Save immediately so progress isn't lost
     localStorage.setItem('cricketManagerSave', JSON.stringify(newGameData));
-    showFeedback("Season 1 Squads Generated Randomly!", "success");
+    showFeedback("Draft Room Initialized!", "success");
   };
 
   const handleAuctionComplete = (finalTeams: Team[]) => {
