@@ -174,41 +174,58 @@ export const App = () => {
 
   const initializeNewGame = (userTeamId: string) => {
     setIsLoading(true);
-    // Hard clear of any previous sessions to ensure fresh start
     localStorage.removeItem('cricketManagerSave');
     
+    // 1. Filter and stabilize pool
     const allPlayersPool = [...PLAYERS].sort(() => Math.random() - 0.5);
     const initialTeamsData = [...TEAMS];
     const usedPlayerIds = new Set<string>();
 
+    const targetSquadSize = 16;
+    const maxForeign = 5;
+
     const initialTeams: Team[] = initialTeamsData.map(teamData => {
-        // For a meaningful auction, we only retain a few core players (e.g., 4)
-        const targetRetainedSize = 4;
-        
         let squad: Player[] = [];
-        // 1. Try to use pre-built if available (first 4)
-        const preBuiltIds = (PRE_BUILT_SQUADS[teamData.id] || []).slice(0, targetRetainedSize);
+        let foreignCount = 0;
+
+        // Start with pre-built core (usually first few established players)
+        const preBuiltIds = (PRE_BUILT_SQUADS[teamData.id] || []).slice(0, 4);
         preBuiltIds.forEach(pid => {
             const p = PLAYERS.find(pl => pl.id === pid);
             if (p && !usedPlayerIds.has(pid)) {
                 squad.push(JSON.parse(JSON.stringify(p)));
                 usedPlayerIds.add(pid);
+                if (p.isForeign) foreignCount++;
             }
         });
 
-        // 2. If for some reason we don't have enough, fill to 4
-        while (squad.length < targetRetainedSize) {
-            const leftoverIndex = allPlayersPool.findIndex(p => !usedPlayerIds.has(p.id));
+        // Fill remaining squad randomly from balanced roles
+        const roles = ['BAT', 'WK', 'BL', 'SB', 'AR'];
+        while (squad.length < targetSquadSize) {
+            const leftoverIndex = allPlayersPool.findIndex(p => {
+                if (usedPlayerIds.has(p.id)) return false;
+                if (p.isForeign && foreignCount >= maxForeign) return false;
+                return true;
+            });
+
             if (leftoverIndex !== -1) {
                 const p = allPlayersPool[leftoverIndex];
                 squad.push(JSON.parse(JSON.stringify(p)));
                 usedPlayerIds.add(p.id);
+                if (p.isForeign) foreignCount++;
             } else {
                 break;
             }
         }
 
-        return { id: teamData.id, name: teamData.name, squad, captains: {}, purse: 100.0, firstAidKits: 1 };
+        return { 
+            id: teamData.id, 
+            name: teamData.name, 
+            squad, 
+            captains: {}, 
+            purse: 20.0, // Remaining purse for mid-season
+            firstAidKits: 2 
+        };
     });
 
     const initialStandings = (teams: Team[]) => teams.map(team => ({ 
@@ -261,9 +278,14 @@ export const App = () => {
           isDoubleRoundRobin: true
       }
     };
+
     setGameData(newGameData);
-    setAppState('AUCTION');
+    setAppState('CAREER_HUB'); // Jump straight to Career Hub
     setIsLoading(false);
+    
+    // Save immediately so progress isn't lost
+    localStorage.setItem('cricketManagerSave', JSON.stringify(newGameData));
+    showFeedback("Season 1 Squads Generated Randomly!", "success");
   };
 
   const handleAuctionComplete = (finalTeams: Team[]) => {
